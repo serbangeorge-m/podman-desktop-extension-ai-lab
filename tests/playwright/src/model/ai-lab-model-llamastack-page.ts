@@ -15,13 +15,16 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  ***********************************************************************/
-import type { Locator, Page } from '@playwright/test';
+import { type Locator, type Page } from '@playwright/test';
 import { AILabBasePage } from './ai-lab-base-page';
 
 export class AiLlamaStackPage extends AILabBasePage {
   readonly startLlamaStackContainerButton: Locator;
   readonly openLlamaStackContainerButton: Locator;
   readonly exploreLlamaStackEnvironmentButton: Locator;
+  readonly allTaskItems: Locator;
+  private readonly completedTaskIcon: Locator;
+  private readonly startingLlamaStackPlaygroundTask: Locator;
 
   constructor(page: Page, webview: Page) {
     super(page, webview, 'Llama Stack');
@@ -30,6 +33,11 @@ export class AiLlamaStackPage extends AILabBasePage {
     this.exploreLlamaStackEnvironmentButton = this.webview.getByRole('button', {
       name: 'Explore Llama-Stack environment',
     });
+    this.allTaskItems = this.webview.locator('ul.space-y-2 > li');
+    this.startingLlamaStackPlaygroundTask = this.allTaskItems.filter({
+      has: this.webview.getByText('Starting Llama Stack Playground'),
+    });
+    this.completedTaskIcon = this.startingLlamaStackPlaygroundTask.locator('svg.text-green-500');
   }
 
   async waitForLoad(): Promise<void> {
@@ -46,5 +54,10 @@ export class AiLlamaStackPage extends AILabBasePage {
 
   async waitForExploreLlamaStackEnvironmentButton(): Promise<void> {
     await this.exploreLlamaStackEnvironmentButton.waitFor({ state: 'visible' });
+  }
+
+  async verifyTasksCompletedSuccessfully(): Promise<void> {
+    await this.startingLlamaStackPlaygroundTask.waitFor({ state: 'visible', timeout: 360_000 });
+    await this.completedTaskIcon.waitFor({ state: 'visible', timeout: 10_000 });
   }
 }
