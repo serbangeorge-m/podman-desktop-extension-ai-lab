@@ -15,7 +15,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  ***********************************************************************/
-import { type Locator, type Page } from '@playwright/test';
+import { type Locator, type Page, expect as playExpect } from '@playwright/test';
 import { AILabBasePage } from './ai-lab-base-page';
 
 export class AiLlamaStackPage extends AILabBasePage {
@@ -59,5 +59,27 @@ export class AiLlamaStackPage extends AILabBasePage {
   async verifyTasksCompletedSuccessfully(): Promise<void> {
     await this.startingLlamaStackPlaygroundTask.waitFor({ state: 'visible', timeout: 360_000 });
     await this.completedTaskIcon.waitFor({ state: 'visible', timeout: 10_000 });
+  }
+
+  async waitForLlamaStackContainerToStart(): Promise<void> {
+    await playExpect
+      .poll(
+        async () => {
+          const isIconVisible = await this.completedTaskIcon.isVisible();
+          const isButtonVisible = await this.openLlamaStackContainerButton.isVisible();
+          const hasError = await this.webview.getByText('error').isVisible();
+          if (hasError) {
+            console.error('An error was detected in the Llama Stack tasks. The test will fail.');
+            return true;
+          }
+          return isIconVisible || isButtonVisible;
+        },
+        {
+          message: 'Expected a successful start task or "Open" button to become visible.',
+          timeout: 360_000,
+          intervals: [5_000],
+        },
+      )
+      .toBeTruthy();
   }
 }

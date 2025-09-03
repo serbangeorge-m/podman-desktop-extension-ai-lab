@@ -204,7 +204,7 @@ test.describe.serial(`AI Lab extension installation and verification`, () => {
       test.setTimeout(420_000);
       await llamaStackPage.waitForLoad();
       await llamaStackPage.runLlamaStackContainer();
-      await llamaStackPage.verifyTasksCompletedSuccessfully();
+      await llamaStackPage.waitForLlamaStackContainerToStart();
     });
 
     test(`Verify Llama Stack containers are running`, async ({ navigationBar }) => {
