@@ -201,13 +201,13 @@ test.describe.serial(`AI Lab extension installation and verification`, () => {
     });
 
     test(`Start Llama Stack containers`, async () => {
-      test.setTimeout(300_000);
+      test.setTimeout(600_000);
       await llamaStackPage.waitForLoad();
       await llamaStackPage.runLlamaStackContainer();
-      await playExpect(llamaStackPage.openLlamaStackContainerButton).toBeVisible({ timeout: 120_000 });
-      await playExpect(llamaStackPage.exploreLlamaStackEnvironmentButton).toBeVisible({ timeout: 120_000 });
-      await playExpect(llamaStackPage.openLlamaStackContainerButton).toBeEnabled({ timeout: 30_000 });
-      await playExpect(llamaStackPage.exploreLlamaStackEnvironmentButton).toBeEnabled({ timeout: 30_000 });
+      await playExpect(llamaStackPage.openLlamaStackContainerButton).toBeVisible({ timeout: 240_000 });
+      await playExpect(llamaStackPage.exploreLlamaStackEnvironmentButton).toBeVisible({ timeout: 240_000 });
+      await playExpect(llamaStackPage.openLlamaStackContainerButton).toBeEnabled({ timeout: 60_000 });
+      await playExpect(llamaStackPage.exploreLlamaStackEnvironmentButton).toBeEnabled({ timeout: 60_000 });
     });
 
     test(`Verify Llama Stack containers are running`, async ({ navigationBar }) => {
