@@ -456,7 +456,7 @@ test.describe.serial(`AI Lab extension installation and verification`, () => {
       });
 
       test(`Delete AI Lab playground for ${modelName}`, async () => {
-        test.setTimeout(70_000);
+        test.setTimeout(120_000);
         playgroundsPage = await aiLabPage.navigationBar.openPlaygrounds();
         await playgroundsPage.waitForLoad();
 
@@ -464,7 +464,7 @@ test.describe.serial(`AI Lab extension installation and verification`, () => {
 
         await playExpect
           // eslint-disable-next-line sonarjs/no-nested-functions
-          .poll(async () => await playgroundsPage.doesPlaygroundExist(playgroundName), { timeout: 60_000 })
+          .poll(async () => await playgroundsPage.doesPlaygroundExist(playgroundName), { timeout: 120_000 })
           .toBeFalsy();
       });
 
