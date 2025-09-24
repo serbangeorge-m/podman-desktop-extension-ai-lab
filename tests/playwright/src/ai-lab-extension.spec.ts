@@ -395,7 +395,7 @@ test.describe.serial(`AI Lab extension installation and verification`, () => {
       });
 
       test.afterAll(`Cleaning up service model`, async () => {
-        test.setTimeout(60_000);
+        test.setTimeout(120_000);
         await cleanupServices();
         await deleteAllModels();
       });
