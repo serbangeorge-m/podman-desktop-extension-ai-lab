@@ -44,6 +44,8 @@ export class InferenceManager extends Publisher<InferenceServer[]> implements Di
   // Disposables
   #disposables: Disposable[];
   #taskRunner: TaskRunner;
+  // Polling intervals (containerId -> intervalId)
+  #pollingIntervals: Map<string, NodeJS.Timeout>;
 
   constructor(
     rpcExtension: RpcExtension,
@@ -60,6 +62,7 @@ export class InferenceManager extends Publisher<InferenceServer[]> implements Di
     this.#disposables = [];
     this.#initialized = false;
     this.#taskRunner = new TaskRunner(this.taskRegistry);
+    this.#pollingIntervals = new Map<string, NodeJS.Timeout>();
   }
 
   init(): void {
@@ -89,6 +92,9 @@ export class InferenceManager extends Publisher<InferenceServer[]> implements Di
    */
   private cleanDisposables(): void {
     this.#disposables.forEach(disposable => disposable.dispose());
+    // Clear all polling intervals
+    this.#pollingIntervals.forEach(intervalId => clearInterval(intervalId));
+    this.#pollingIntervals.clear();
   }
 
   /**
@@ -242,13 +248,32 @@ export class InferenceManager extends Publisher<InferenceServer[]> implements Di
    * @private
    */
   private updateServerStatus(engineId: string, containerId: string): void {
+    // Check if container still exists in our registry first
+    if (!this.#servers.has(containerId)) {
+      // Container was already removed, clean up polling if it exists
+      const intervalId = this.#pollingIntervals.get(containerId);
+      if (intervalId) {
+        clearInterval(intervalId);
+        this.#pollingIntervals.delete(containerId);
+      }
+      return;
+    }
+
     // Inspect container
     containerEngine
       .inspectContainer(engineId, containerId)
       .then(result => {
+        // Double-check container still exists after async operation
         const server = this.#servers.get(containerId);
-        if (server === undefined)
-          throw new Error('Something went wrong while trying to get container status got undefined Inference Server.');
+        if (!server) {
+          // Container was removed while we were inspecting
+          const intervalId = this.#pollingIntervals.get(containerId);
+          if (intervalId) {
+            clearInterval(intervalId);
+            this.#pollingIntervals.delete(containerId);
+          }
+          return;
+        }
 
         // we should not update the server while we are in a transition state.
         if (isTransitioning(server)) return;
@@ -262,6 +287,22 @@ export class InferenceManager extends Publisher<InferenceServer[]> implements Di
         this.notify();
       })
       .catch((err: unknown) => {
+        const errorString = String(err);
+
+        // Check if it's a "container not found" error
+        if (errorString.includes('no such container') || errorString.includes('no container with ID')) {
+          // Container was removed, clean up our tracking
+          console.log(`Container ${containerId} was removed, cleaning up inference server tracking.`);
+          this.removeInferenceServer(containerId);
+          const intervalId = this.#pollingIntervals.get(containerId);
+          if (intervalId) {
+            clearInterval(intervalId);
+            this.#pollingIntervals.delete(containerId);
+          }
+          return;
+        }
+
+        // For other errors, log and retry
         console.error(
           `Something went wrong while trying to inspect container ${containerId}. Trying to refresh servers.`,
           err,
@@ -276,32 +317,53 @@ export class InferenceManager extends Publisher<InferenceServer[]> implements Di
    * @param containerId the container to watch out
    */
   private watchContainerStatus(engineId: string, containerId: string): void {
-    // Update now
-    this.updateServerStatus(engineId, containerId);
-
-    // Create a pulling update for container health check
-    const intervalId = setInterval(this.updateServerStatus.bind(this, engineId, containerId), 10000);
-
-    this.#disposables.push(
-      Disposable.create(() => {
-        clearInterval(intervalId);
-      }),
-    );
-    // Subscribe to container status update
+    // Subscribe to container events BEFORE starting polling to avoid race conditions
     const disposable = this.containerRegistry.subscribe(containerId, (status: string) => {
       switch (status) {
-        case 'die':
+        case 'die': {
           this.updateServerStatus(engineId, containerId);
-          clearInterval(intervalId);
+          // Clear polling interval on container death
+          const intervalId = this.#pollingIntervals.get(containerId);
+          if (intervalId) {
+            clearInterval(intervalId);
+            this.#pollingIntervals.delete(containerId);
+          }
           break;
-        case 'remove':
+        }
+        case 'remove': {
+          // Clear interval IMMEDIATELY on remove event to prevent race condition
+          const removeIntervalId = this.#pollingIntervals.get(containerId);
+          if (removeIntervalId) {
+            clearInterval(removeIntervalId);
+            this.#pollingIntervals.delete(containerId);
+          }
           // Update the list of servers
           this.removeInferenceServer(containerId);
           disposable.dispose();
-          clearInterval(intervalId);
           break;
+        }
       }
     });
+
+    // Update now (after event subscription)
+    this.updateServerStatus(engineId, containerId);
+
+    // Create a polling update for container health check
+    const intervalId = setInterval(this.updateServerStatus.bind(this, engineId, containerId), 10000);
+
+    // Store the interval ID for cleanup
+    this.#pollingIntervals.set(containerId, intervalId);
+
+    this.#disposables.push(
+      Disposable.create(() => {
+        const storedIntervalId = this.#pollingIntervals.get(containerId);
+        if (storedIntervalId) {
+          clearInterval(storedIntervalId);
+          this.#pollingIntervals.delete(containerId);
+        }
+      }),
+    );
+
     // Allowing cleanup if extension is stopped
     this.#disposables.push(disposable);
   }
@@ -416,6 +478,12 @@ export class InferenceManager extends Publisher<InferenceServer[]> implements Di
    */
   private removeInferenceServer(containerId: string): void {
     this.#servers.delete(containerId);
+    // Also clean up polling interval if it exists
+    const intervalId = this.#pollingIntervals.get(containerId);
+    if (intervalId) {
+      clearInterval(intervalId);
+      this.#pollingIntervals.delete(containerId);
+    }
     this.notify();
   }
 
