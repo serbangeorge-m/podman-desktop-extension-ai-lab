@@ -36,6 +36,10 @@ test: |
   (
     cd "$TMT_TREE/tests/playwright"
     pnpm add -D @podman-desktop/tests-playwright@next
+    # Install Playwright's chromium browser. podman-desktop's e2e does this (via
+    # globalSetup, see podman-desktop#18140); without it the Electron renderer
+    # never mounts (blank screen).
+    npx playwright install chromium
   )
 
   (
