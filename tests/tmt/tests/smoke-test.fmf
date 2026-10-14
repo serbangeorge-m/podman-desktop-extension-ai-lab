@@ -30,7 +30,10 @@ test: |
   (
     cd "$PODMAN_DESKTOP_ARGS"
     pnpm install
-    pnpm build
+    # Build in development mode (matches podman-desktop's own e2e). A plain
+    # production build is launched from source via file:// by the runner and
+    # the renderer never mounts (blank screen).
+    pnpm test:e2e:build
   )
 
   (
