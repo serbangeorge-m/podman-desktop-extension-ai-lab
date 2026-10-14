@@ -49,7 +49,26 @@ elif [ "$1" -eq 255 ]; then
     cp -r "$PLAYWRIGHT_JUNIT_DIR" ./playwright-report
   else
     echo "Warning: playwright output directory does not exist" >&2
+    mkdir -p ./playwright-report
   fi
+
+  # --- ponytail: diagnostic capture for the blank-screen investigation ---
+  # The renderer never mounts (#app empty, no console). Capture the ground truth:
+  # the built renderer entry (real CSP meta + script asset paths under file://)
+  # and Podman Desktop's own main-process logs (did-fail-load / CSP violations).
+  mkdir -p ./playwright-report/diag
+  cp "$TMT_TREE/podman-desktop/packages/renderer/dist/index.html" \
+     ./playwright-report/diag/renderer-index.html 2>/dev/null \
+     || echo "diag: built renderer index.html not found" >&2
+  for d in "$HOME/.local/share" "$HOME/.config" \
+           "$TMT_TREE/tests/playwright/tests/playwright/output/ai-lab-tests-pd" \
+           "$TMT_TREE/tests/playwright/output/ai-lab-tests-pd"; do
+    [ -d "$d" ] && find "$d" -iname "*.log" 2>/dev/null \
+      -exec cp --parents {} ./playwright-report/diag/ \; 2>/dev/null
+  done
+  find "$HOME/.local/share" "$HOME/.config" -maxdepth 2 -iname "*podman*" 2>/dev/null \
+     > ./playwright-report/diag/pd-dirs.txt || true
+  # -----------------------------------------------------------------------
 
   cat <<EOF > ./results.yaml
 - name: /tests/$2
