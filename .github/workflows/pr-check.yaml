@@ -147,6 +147,20 @@ jobs:
           EXTENSION_PREINSTALLED: true
         run: pnpm test:e2e:smoke
 
+      # TEMP discovery step: locate the AI Lab models dir on the runner and its
+      # size, so the actions/cache path + 10GB-limit check can be wired up.
+      # Remove once the cache step below is finalized.
+      - name: Probe AI Lab models directory
+        if: always()
+        working-directory: ./podman-desktop-extension-ai-lab
+        run: |
+          echo "=== models directories ==="
+          find . -type d -name models -path '*ai-lab-tests-pd*' 2>/dev/null
+          echo "=== sizes ==="
+          find . -type d -name models -path '*ai-lab-tests-pd*' -exec du -sh {} + 2>/dev/null || true
+          echo "=== extensions-storage tree under test home ==="
+          find . -type d -path '*ai-lab-tests-pd*' 2>/dev/null | grep -iE 'storage|models|redhat|ai-lab' | head -50
+
       - name: Publish Test Report
         uses: mikepenz/action-junit-report@v6
         if: always()
