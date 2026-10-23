@@ -70,7 +70,7 @@ jobs:
 
   e2e-pr-check:
     name: e2e tests smoke
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     env:
       SKIP_INSTALLATION: true
     steps:
@@ -103,12 +103,8 @@ jobs:
           version: ${{ steps.podman-desktop-version.outputs.version }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update podman
-        uses: redhat-actions/podman-install@92eb12467c2fc271e7781d006c413e17770230ed
-        with:
-          ubuntu-repository: 'questing'
-
-      - name: Revert unprivileged user namespace restrictions in Ubuntu 24.04
+      # ubuntu-26.04 ships podman 5.x natively; no questing backport needed.
+      - name: Revert unprivileged user namespace restrictions
         run: |
           # allow unprivileged user namespace
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
@@ -140,6 +136,17 @@ jobs:
 
       - name: Free up disk space
         uses: podman-desktop/e2e/.github/actions/disk-cleanup@6a406f8f24bacffc481553266f9ba8a5293f3077
+
+      # Cache downloaded models so the smoke tests skip re-downloading them from
+      # HuggingFace on every PR. The tests already guard downloads with
+      # isModelDownloaded(), so a restored dir makes them a no-op. Keyed on the
+      # catalog so adding/bumping a model busts the cache.
+      - name: Cache AI Lab models
+        uses: actions/cache@v4
+        with:
+          path: podman-desktop-extension-ai-lab/tests/playwright/tests/playwright/output/ai-lab-tests-pd/extensions-storage/redhat.ai-lab/models
+          key: ai-lab-models-${{ hashFiles('podman-desktop-extension-ai-lab/packages/backend/src/assets/ai.json') }}
+          restore-keys: ai-lab-models-
 
       - name: Run E2E Smoke tests
         working-directory: ./podman-desktop-extension-ai-lab
